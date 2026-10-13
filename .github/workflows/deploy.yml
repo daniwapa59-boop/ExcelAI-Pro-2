@@ -1,0 +1,60 @@
+name: Publier ExcelAI Pro
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recuperer les fichiers
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Extraire et construire le projet
+        id: build
+        run: |
+          mkdir project
+          unzip -q ExcelAI-Pro-Complet.zip -d project
+          PACKAGE=$(find project -name package.json -print -quit)
+          if [ -z "$PACKAGE" ]; then
+            echo "package.json introuvable dans le ZIP"
+            exit 1
+          fi
+          PROJECT_DIR=$(dirname "$PACKAGE")
+          cd "$PROJECT_DIR"
+          npm install
+          npm run build
+          echo "dist_path=$PWD/dist" >> "$GITHUB_OUTPUT"
+
+      - name: Preparer les fichiers du site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ steps.build.outputs.dist_path }}
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Publier le site
+        id: deployment
+        uses: actions/deploy-pages@v4
